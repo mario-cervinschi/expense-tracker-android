@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">ExpenseTracker</string>
+    <string name="transactionAdd">New Transaction</string>
+    <string name="transactionEdit">Edit Transaction</string>
+    <string name="transactions">Transactions</string>
+    <string name="login">Login</string>
+    <string name="register">Register</string>
 </resources>

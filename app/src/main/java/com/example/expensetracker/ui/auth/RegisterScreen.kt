@@ -1,4 +1,4 @@
-package com.example.expensetracker.auth
+package com.example.expensetracker.ui.auth
 
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -10,22 +10,32 @@ import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.expensetracker.R
 
 val TAG_R = "RegisterScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterScreen(){
+fun RegisterScreen(
+    onRegisterSuccess: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {}
+){
+    val registerViewModel = viewModel<RegisterViewModel>(factory = RegisterViewModel.Factory)
+    val registerUiState = registerViewModel.uiState
+
     Scaffold (
         topBar = { TopAppBar(title = { Text(text = stringResource(id = R.string.register)) }) },
     ) {
@@ -35,11 +45,11 @@ fun RegisterScreen(){
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
-            var username by remember { mutableStateOf("") }
+            var email by remember { mutableStateOf("") }
             TextField(
-                label = { Text(text = "Username") },
-                value = username,
-                onValueChange = { username = it },
+                label = { Text(text = "Username/Email") },
+                value = email,
+                onValueChange = { email = it },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -62,10 +72,36 @@ fun RegisterScreen(){
             )
 
             Button(onClick = {
-                Log.d(TAG_R, "registering...");
-            }) {
+                Log.d("RegisterScreen", "register...")
+                registerViewModel.register(email, firstPassword, retypePassword)
+            }, modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("Register")
             }
+
+            if (registerUiState.isRegistering) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(15.dp)
+                );
+            }
+
+            if (registerUiState.registerError != null) {
+                Text(text = "Login failed ${registerUiState.registerError.message}")
+            }
+
+            TextButton(
+                onClick = onNavigateToLogin,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Already have an account? Login")
+            }
+        }
+    }
+    LaunchedEffect(registerUiState.registerCompleted) {
+        if (registerUiState.registerCompleted) {
+            onRegisterSuccess()
         }
     }
 }

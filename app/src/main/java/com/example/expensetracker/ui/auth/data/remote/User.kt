@@ -1,4 +1,3 @@
 package com.example.expensetracker.ui.auth.data.remote
 
-class User {
-}
+data class User (val email: String, val password: String)

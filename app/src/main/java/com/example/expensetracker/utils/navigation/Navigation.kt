@@ -1,10 +1,10 @@
-package com.example.expensetracker
+package com.example.expensetracker.utils.navigation
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Register : Screen("register")
     object Main : Screen("main")
-    object EditTransaction : Screen("edit/{transactionId}") {
-        fun createRoute(transactionId: String) = "edit/$transactionId"
+    object Transaction : Screen("transaction/{transactionId}") {
+        fun createRoute(transactionId: String?) = "transaction/${transactionId ?: "new"}"
     }
 }

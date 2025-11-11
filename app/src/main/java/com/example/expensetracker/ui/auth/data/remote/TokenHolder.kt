@@ -1,4 +1,3 @@
 package com.example.expensetracker.ui.auth.data.remote
 
-class TokenHolder {
-}
+data class TokenHolder (val token: String)
