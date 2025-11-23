@@ -57,15 +57,15 @@ class ExpenseTrackerViewModel (
         return when (exception) {
             is HttpException -> {
                 if (exception.code() == 401 || exception.code() == 403) {
-                    "Sesiune invalidă. Te rog, autentifică-te din nou."
+                    "Invalid session. Please log in again."
                 } else {
-                    "Eroare de server neașteptată: ${exception.code()}"
+                    "Unknown error: ${exception.code()}"
                 }
             }
             is IOException, is java.net.UnknownHostException -> {
-                "Serverul nu răspunde. Verifică conexiunea la internet."
+                "Server not responding. Verify internet connection."
             }
-            else -> "A apărut o eroare necunoscută."
+            else -> "Unknown error."
         }
     }
 
