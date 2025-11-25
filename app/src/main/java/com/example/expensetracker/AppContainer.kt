@@ -25,7 +25,6 @@ class AppContainer(val context: Context) {
     private val transactionWsClient: TransactionWsClient = TransactionWsClient(Api.okHttpClient)
     private val authDataSource: AuthDataSource = AuthDataSource()
     private val database: AppDatabase by lazy { AppDatabase.getDatabase(context) }
-    private val workManager = androidx.work.WorkManager.getInstance(context)
     val transactionRepository: TransactionRepository by lazy {
         TransactionRepository(transactionWsClient, transactionService, database.transactionDao())
     }
