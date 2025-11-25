@@ -8,40 +8,42 @@ import com.example.expensetracker.data.remote.Api
 import com.example.expensetracker.data.remote.transactions.TransactionEvent
 import com.example.expensetracker.data.remote.transactions.TransactionService
 import com.example.expensetracker.data.remote.transactions.TransactionWsClient
+import com.example.expensetracker.utils.NetworkStatusService
 import com.example.expensetracker.utils.notification.NotificationService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
+import java.util.UUID
 import kotlin.getValue
 
 class TransactionRepository (
     private val transactionWsClient: TransactionWsClient,
     private val transactionService : TransactionService,
     private val transactionDao: TransactionDao,
-    private val context: Context
+    private val context: Context,
+    private val networkStatusService: NetworkStatusService
 ) {
     private val notificationService = NotificationService(context)
-
     val transactionStream by lazy { transactionDao.getAll() }
+    private fun getBearerToken() = "Bearer ${Api.tokenInterceptor.token}"
 
     init {
         Log.d("TransactionRepository", "init")
     }
 
-    private fun getBearerToken() = "Bearer ${Api.tokenInterceptor.token}"
-
     suspend fun refresh() {
-        Log.d("TransactionRepository", "refresh started")
         try {
-            val result = transactionService.find(authorization = getBearerToken())
-            transactionDao.deleteAll()
-            result.forEach { transactionDao.insert(it) }
-            Log.d("TransactionRepository", "refresh succeeded")
+            val remoteData = transactionService.find(authorization = getBearerToken())
+
+            transactionDao.deleteSyncedOnly()
+
+            remoteData.forEach {
+                transactionDao.insert(it.copy(isSynced = true))
+            }
         } catch (e: Exception) {
-            Log.w("TransactionRepository", "refresh failed", e)
-            throw e
+            Log.w("Repo", "Refresh failed", e)
         }
     }
 
@@ -94,38 +96,152 @@ class TransactionRepository (
     }
 
     suspend fun update(transaction: Transaction): Transaction {
-        Log.d("TransactionRepository", "update $transaction...")
-        val updatedItem =
-            transactionService.update(transactionId = transaction._id, transaction = transaction, authorization = getBearerToken())
-        Log.d("TransactionRepository", "update $transaction succeeded")
-//        handleTransactionUpdated(updatedItem)
-        return updatedItem
-    }
-
-    suspend fun delete(transaction: Transaction){
-        Log.d("TransactionRepository", "delete ${transaction._id}...")
-        try {
-            transactionService.delete(
-                transactionId = transaction._id,
-                authorization = getBearerToken()
-            )
-
-//            handleTransactionDeleted(transaction)
-
-            Log.d("TransactionRepository", "delete ${transaction._id} succeeded")
-        } catch (e: Exception) {
-            Log.e("TransactionRepository", "delete failed for ${transaction._id}", e)
-            throw e
+        if (networkStatusService.hasInternetConnection()) {
+            return try {
+                Log.d("TransactionRepository", "Online: Updating API...")
+                val updatedItem = transactionService.update(
+                    transactionId = transaction._id,
+                    transaction = transaction,
+                    authorization = getBearerToken()
+                )
+                transactionDao.update(updatedItem.copy(isSynced = true))
+                updatedItem
+            } catch (e: Exception) {
+                Log.w("TransactionRepository", "API update failed, saving offline", e)
+                updateOffline(transaction)
+            }
+        } else {
+            return updateOffline(transaction)
         }
     }
 
+    private suspend fun updateOffline(transaction: Transaction): Transaction {
+        val offlineTransaction = transaction.copy(isSynced = false)
+        transactionDao.update(offlineTransaction)
+        return offlineTransaction
+    }
+
+    suspend fun delete(transaction: Transaction){
+        if (networkStatusService.hasInternetConnection()) {
+            try {
+                Log.d("TransactionRepository", "Online: Deleting from API...")
+                transactionService.delete(
+                    transactionId = transaction._id,
+                    authorization = getBearerToken()
+                )
+                transactionDao.deleteById(transaction._id)
+            } catch (e: Exception) {
+                Log.w("TransactionRepository", "API delete failed, marking offline delete", e)
+                deleteOffline(transaction)
+            }
+        } else {
+            deleteOffline(transaction)
+        }
+    }
+
+    private suspend fun deleteOffline(transaction: Transaction) {
+        val deletedTransaction = transaction.copy(
+            isDeletedLocally = true,
+            isSynced = false
+        )
+        transactionDao.update(deletedTransaction)
+    }
+
     suspend fun save(transaction: Transaction): Transaction {
-        Log.d("TransactionRepository", "save $transaction...")
-        val createdItem = transactionService.create(transaction = transaction, authorization = getBearerToken())
+        if (networkStatusService.hasInternetConnection()) {
+            return try {
+                Log.d("TransactionRepository", "Online: Saving to API...")
+                val createdItem = transactionService.create(transaction = transaction, authorization = getBearerToken())
 
-        Log.d("TransactionRepository", "save $transaction succeeded")
+                transactionDao.insert(createdItem.copy(isSynced = true))
 
-        return createdItem
+                Log.d("TransactionRepository", "Save to API succeeded")
+                createdItem
+            } catch (e: Exception) {
+                Log.w("TransactionRepository", "API save failed, falling back to offline", e)
+                saveOffline(transaction)
+            }
+        } else {
+            Log.d("TransactionRepository", "Offline: Saving locally...")
+            return saveOffline(transaction)
+        }
+    }
+
+    private suspend fun saveOffline(transaction: Transaction): Transaction {
+        val offlineId = if (transaction._id.isNullOrEmpty()) UUID.randomUUID().toString() else transaction._id
+
+        val offlineTransaction = transaction.copy(
+            _id = offlineId,
+            isSynced = false,
+            isDeletedLocally = false
+        )
+
+        transactionDao.insert(offlineTransaction)
+        return offlineTransaction
+    }
+
+    private fun isLocalId(id: String): Boolean {
+        return id.contains("-") || id.length > 30
+    }
+
+    suspend fun syncOfflineChanges() {
+        if (!networkStatusService.hasInternetConnection()) return
+
+        Log.d("TransactionRepository", "SYNC: Starting background sync...")
+        val token = getBearerToken()
+
+        val unsynced = transactionDao.getUnsyncedTransactions()
+
+        unsynced.forEach { localTrans ->
+            try {
+                if (isLocalId(localTrans._id)) {
+                    Log.d("TransactionRepository", "SYNC: Found NEW item (Local ID), creating on server: ${localTrans.title}")
+
+                    val transToUpload = localTrans.copy(
+                        _id = "",
+                        isSynced = true
+                    )
+
+                    val savedServerTrans = transactionService.create( token, transToUpload)
+
+                    transactionDao.deleteById(localTrans._id)
+                    transactionDao.insert(savedServerTrans.copy(isSynced = true))
+
+                } else {
+                    Log.d("TransactionRepository", "SYNC: Found EXISTING item (Server ID), updating server: ${localTrans.title}")
+
+                    val transToUpdate = localTrans.copy(isSynced = true)
+
+                    val updatedServerTrans = transactionService.update(
+                        transactionId = localTrans._id,
+                        transaction = transToUpdate,
+                        authorization = token
+                    )
+
+                    transactionDao.update(updatedServerTrans.copy(isSynced = true))
+                }
+            } catch (e: Exception) {
+                Log.e("TransactionRepository", "SYNC: Failed to upload ${localTrans._id}", e)
+            }
+        }
+
+        val deletedLocally = transactionDao.getDeletedTransactions()
+        deletedLocally.forEach { trans ->
+            try {
+                if (isLocalId(trans._id)) {
+                    transactionDao.deleteById(trans._id)
+                } else {
+                    transactionService.delete( token, trans._id)
+                    transactionDao.deleteById(trans._id)
+                }
+            } catch (e: Exception) {
+                if ((e as? retrofit2.HttpException)?.code() == 404) {
+                    transactionDao.deleteById(trans._id)
+                }
+            }
+        }
+
+        refresh()
     }
 
     private suspend fun handleTransactionDeleted(item: Transaction) {

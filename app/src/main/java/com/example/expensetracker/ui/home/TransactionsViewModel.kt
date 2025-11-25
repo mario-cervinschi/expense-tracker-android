@@ -19,16 +19,16 @@ class TransactionsViewModel(
 
     init {
         Log.d("TransactionsViewModel", "init")
-        loadTransactions()
     }
 
-    fun loadTransactions() {
-        Log.d("TransactionsViewModel", "loadTransactions...")
+    fun refreshData(){
+        Log.d("TransactionsViewModel", "User requested refresh...")
         viewModelScope.launch {
             try {
                 transactionRepository.refresh()
+                Log.d("TransactionsViewModel", "Refresh succeeded")
             } catch (e: Exception) {
-                Log.w("TransactionsViewModel", "Nu s-a putut face refresh: ${e.message}")
+                Log.w("TransactionsViewModel", "Refresh failed: ${e.message}")
             }
         }
     }

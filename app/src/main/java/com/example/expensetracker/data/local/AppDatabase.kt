@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.expensetracker.data.model.Transaction
 
-@Database(entities = arrayOf(Transaction::class), version = 3)
+@Database(entities = arrayOf(Transaction::class), version = 6)
 @TypeConverters(Converters::class)
 abstract class AppDatabase: RoomDatabase() {
     abstract fun transactionDao(): TransactionDao

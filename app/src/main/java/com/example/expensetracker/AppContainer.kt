@@ -11,6 +11,7 @@ import com.example.expensetracker.data.remote.transactions.TransactionService
 import com.example.expensetracker.data.remote.transactions.TransactionWsClient
 import com.example.expensetracker.ui.auth.data.AuthRepository
 import com.example.expensetracker.ui.auth.data.remote.AuthDataSource
+import com.example.expensetracker.utils.NetworkStatusService
 import kotlin.getValue
 
 val Context.userPreferencesDataStore by preferencesDataStore(
@@ -25,8 +26,12 @@ class AppContainer(val context: Context) {
     private val transactionWsClient: TransactionWsClient = TransactionWsClient(Api.okHttpClient)
     private val authDataSource: AuthDataSource = AuthDataSource()
     private val database: AppDatabase by lazy { AppDatabase.getDatabase(context) }
+    val networkStatusService: NetworkStatusService by lazy {
+        NetworkStatusService(context)
+    }
+
     val transactionRepository: TransactionRepository by lazy {
-        TransactionRepository(transactionWsClient, transactionService, database.transactionDao(), context)
+        TransactionRepository(transactionWsClient, transactionService, database.transactionDao(), context, networkStatusService)
     }
 
     val authRepository: AuthRepository by lazy {

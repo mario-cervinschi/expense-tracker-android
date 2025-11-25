@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.expensetracker.MyApplication
 import com.example.expensetracker.R
 import com.example.expensetracker.utils.NetworkStatusService
 
@@ -101,6 +102,7 @@ fun HomeScreen(
 
     LaunchedEffect (isOnline) {
         if (isOnline) {
+            (context.applicationContext as MyApplication).triggerOneTimeSync()
             showBackOnlineMessage = true
             kotlinx.coroutines.delay(2000)
             showBackOnlineMessage = false

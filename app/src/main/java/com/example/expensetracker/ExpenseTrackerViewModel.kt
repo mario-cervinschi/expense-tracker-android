@@ -10,6 +10,7 @@ import com.example.expensetracker.data.TransactionRepository
 import com.example.expensetracker.data.UserPreferences
 import com.example.expensetracker.data.UserPreferencesRepository
 import com.example.expensetracker.data.remote.Api
+import com.example.expensetracker.utils.JwtUtils
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
@@ -37,18 +38,20 @@ class ExpenseTrackerViewModel (
     }
 
     suspend fun verifyToken(): Result<Unit> {
-        return try {
-            Log.d("ExpenseTrackerVM", "Verifying token by refreshing transactions...")
-            transactionRepository.refresh()
-            Log.d("ExpenseTrackerVM", "Token verified. Refresh successful.")
-            Result.success(Unit)
-        } catch (e: Exception) {
-//            if (e is java.io.IOException) {
-//                Log.d("VerifyToken", "Offline but token is valid locally")
-//                Result.success(Unit)
-//            } else {
-            Result.failure(e)
-//            }
+        val token = Api.tokenInterceptor.token
+
+        Log.d("ExpenseTrackerVM", "Verifying token locally...")
+        if (!JwtUtils.isTokenExpired(token)) {
+            Log.d("ExpenseTrackerVM", "Token is valid (not expired). Skipping Login.")
+
+            if (Api.tokenInterceptor.token == null && token != null) {
+                Api.tokenInterceptor.token = token
+            }
+
+            return Result.success(Unit)
+        } else {
+            Log.d("ExpenseTrackerVM", "Token expired or invalid.")
+            return Result.failure(Exception("Token expired"))
         }
     }
 
