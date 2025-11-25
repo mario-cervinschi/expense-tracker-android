@@ -78,6 +78,12 @@ fun TransactionScreen(transactionId : String?, onClose : () -> Unit){
         }
         if (transactionUiState.loadResult is com.example.expensetracker.data.Result.Success) {
             val transaction = transactionUiState.transaction
+
+            if (transactionId != null && transaction._id != transactionId) {
+                Log.d("TransactionScreen", "Ignoring mismatch/empty data: Requested $transactionId but got ${transaction._id}")
+                return@LaunchedEffect
+            }
+
             title = transaction.title
             dateInMillis = transaction.date.time
             sumString = transaction.sum.toString()

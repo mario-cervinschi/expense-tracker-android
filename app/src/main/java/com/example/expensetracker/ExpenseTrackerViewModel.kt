@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.expensetracker.data.TransactionRepository
 import com.example.expensetracker.data.UserPreferences
 import com.example.expensetracker.data.UserPreferencesRepository
+import com.example.expensetracker.data.remote.Api
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
@@ -42,8 +43,12 @@ class ExpenseTrackerViewModel (
             Log.d("ExpenseTrackerVM", "Token verified. Refresh successful.")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.w("ExpenseTrackerVM", "Token verification failed", e)
+//            if (e is java.io.IOException) {
+//                Log.d("VerifyToken", "Offline but token is valid locally")
+//                Result.success(Unit)
+//            } else {
             Result.failure(e)
+//            }
         }
     }
 

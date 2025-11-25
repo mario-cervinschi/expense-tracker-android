@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 class TransactionsViewModel(
     private val transactionRepository: TransactionRepository
 ) : ViewModel() {
-    val uiState: Flow<List<Transaction>> = transactionRepository.transactions
+    val uiState: Flow<List<Transaction>> = transactionRepository.transactionStream
 
     init {
         Log.d("TransactionsViewModel", "init")
@@ -25,7 +25,11 @@ class TransactionsViewModel(
     fun loadTransactions() {
         Log.d("TransactionsViewModel", "loadTransactions...")
         viewModelScope.launch {
-            transactionRepository.refresh()
+            try {
+                transactionRepository.refresh()
+            } catch (e: Exception) {
+                Log.w("TransactionsViewModel", "Nu s-a putut face refresh: ${e.message}")
+            }
         }
     }
 

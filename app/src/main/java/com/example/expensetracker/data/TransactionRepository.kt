@@ -1,6 +1,7 @@
 package com.example.expensetracker.data
 
 import android.util.Log
+import com.example.expensetracker.data.local.TransactionDao
 import com.example.expensetracker.data.model.Transaction
 import com.example.expensetracker.data.remote.Api
 import com.example.expensetracker.data.remote.transactions.TransactionEvent
@@ -9,17 +10,16 @@ import com.example.expensetracker.data.remote.transactions.TransactionWsClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
+import kotlin.getValue
 
 class TransactionRepository (
     private val transactionWsClient: TransactionWsClient,
-    private val transactionService : TransactionService
+    private val transactionService : TransactionService,
+    private val transactionDao: TransactionDao
 ) {
-    private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
-    val transactions = _transactions.asStateFlow()
+    val transactionStream by lazy { transactionDao.getAll() }
 
     init {
         Log.d("TransactionRepository", "init")
@@ -31,7 +31,8 @@ class TransactionRepository (
         Log.d("TransactionRepository", "refresh started")
         try {
             val result = transactionService.find(authorization = getBearerToken())
-            _transactions.value = result
+            transactionDao.deleteAll()
+            result.forEach { transactionDao.insert(it) }
             Log.d("TransactionRepository", "refresh succeeded")
         } catch (e: Exception) {
             Log.w("TransactionRepository", "refresh failed", e)
@@ -116,24 +117,25 @@ class TransactionRepository (
     suspend fun save(transaction: Transaction): Transaction {
         Log.d("TransactionRepository", "save $transaction...")
         val createdItem = transactionService.create(transaction = transaction, authorization = getBearerToken())
+
         Log.d("TransactionRepository", "save $transaction succeeded")
-//        handleTransactionCreated(createdItem)
+
         return createdItem
     }
 
     private suspend fun handleTransactionDeleted(item: Transaction) {
         Log.d("TransactionRepository", "handleTransactionDeleted - todo $item")
-        _transactions.value = _transactions.value.filter { it._id != item._id }
+        transactionDao.deleteById(item._id)
     }
 
     private suspend fun handleTransactionUpdated(item: Transaction) {
         Log.d("TransactionRepository", "handleTransactionUpdated...")
-        _transactions.value = _transactions.value.map { if (it._id == item._id) item else it }
+        transactionDao.update(item)
     }
 
     private suspend fun handleTransactionCreated(item: Transaction) {
         Log.d("TransactionRepository", "handleItemCreated...")
-        _transactions.value = _transactions.value + item
+        transactionDao.insert(item)
     }
 
     suspend fun deleteAll() {
