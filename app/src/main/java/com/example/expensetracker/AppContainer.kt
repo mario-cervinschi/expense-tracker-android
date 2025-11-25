@@ -26,7 +26,7 @@ class AppContainer(val context: Context) {
     private val authDataSource: AuthDataSource = AuthDataSource()
     private val database: AppDatabase by lazy { AppDatabase.getDatabase(context) }
     val transactionRepository: TransactionRepository by lazy {
-        TransactionRepository(transactionWsClient, transactionService, database.transactionDao())
+        TransactionRepository(transactionWsClient, transactionService, database.transactionDao(), context)
     }
 
     val authRepository: AuthRepository by lazy {

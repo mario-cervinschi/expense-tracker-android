@@ -1,5 +1,6 @@
 package com.example.expensetracker.data
 
+import android.content.Context
 import android.util.Log
 import com.example.expensetracker.data.local.TransactionDao
 import com.example.expensetracker.data.model.Transaction
@@ -7,6 +8,7 @@ import com.example.expensetracker.data.remote.Api
 import com.example.expensetracker.data.remote.transactions.TransactionEvent
 import com.example.expensetracker.data.remote.transactions.TransactionService
 import com.example.expensetracker.data.remote.transactions.TransactionWsClient
+import com.example.expensetracker.utils.notification.NotificationService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -17,8 +19,11 @@ import kotlin.getValue
 class TransactionRepository (
     private val transactionWsClient: TransactionWsClient,
     private val transactionService : TransactionService,
-    private val transactionDao: TransactionDao
+    private val transactionDao: TransactionDao,
+    private val context: Context
 ) {
+    private val notificationService = NotificationService(context)
+
     val transactionStream by lazy { transactionDao.getAll() }
 
     init {
@@ -136,6 +141,7 @@ class TransactionRepository (
     private suspend fun handleTransactionCreated(item: Transaction) {
         Log.d("TransactionRepository", "handleItemCreated...")
         transactionDao.insert(item)
+        notificationService.showNewTransactionNotification(item.title, item.sum.toDouble(), item.income)
     }
 
     suspend fun deleteAll() {
