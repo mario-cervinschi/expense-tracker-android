@@ -11,17 +11,37 @@ import com.example.expensetracker.data.UserPreferences
 import com.example.expensetracker.data.UserPreferencesRepository
 import com.example.expensetracker.data.remote.Api
 import com.example.expensetracker.utils.JwtUtils
+import com.example.expensetracker.utils.NetworkStatusService
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
 
 class ExpenseTrackerViewModel (
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val networkStatusService: NetworkStatusService
 ) : ViewModel() {
 
-    init{
+    private var wasOffline = false
 
+    init{
+        observeNetworkStatus()
+    }
+
+    private fun observeNetworkStatus() {
+        viewModelScope.launch {
+            networkStatusService.isOnline.collect { isOnline ->
+                Log.d("ExpenseTrackerVM", "Network status changed: isOnline=$isOnline")
+
+                if (isOnline && wasOffline) {
+                    // Tocmai ai revenit online
+                    Log.d("ExpenseTrackerVM", "Reconnected! Syncing and checking for new transactions...")
+                    transactionRepository.syncOfflineChanges()
+                }
+
+                wasOffline = !isOnline
+            }
+        }
     }
 
     fun logout() {
@@ -87,7 +107,8 @@ class ExpenseTrackerViewModel (
                     (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MyApplication)
                 ExpenseTrackerViewModel(
                     app.container.userPreferencesRepository,
-                    app.container.transactionRepository
+                    app.container.transactionRepository,
+                    app.container.networkStatusService
                 )
             }
         }

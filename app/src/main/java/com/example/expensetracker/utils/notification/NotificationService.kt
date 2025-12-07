@@ -11,6 +11,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import kotlin.random.Random
 
 class NotificationService(private val context: Context) {
 
@@ -48,14 +49,23 @@ class NotificationService(private val context: Context) {
             }
         }
 
+        val notificationId = Random.nextInt(1000, 9999)
+
+        val contentText = if (income) {
+            "$title: Tranzactie de +$amount RON a fost adaugata."
+        } else {
+            "$title: Tranzactie de -$amount RON a fost adaugata."
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Tranzactie noua")
-            .setContentText(if(income) "$title: Tranzactie de $amount RON a fost adaugata." else "$title: Tranzactie de -$amount RON a fost adaugata.")
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
 
-        Log.d("NotificationService", "sending notif")
+        Log.d("NotificationService", "sending notif #$notificationId: $contentText")
 
         with(NotificationManagerCompat.from(context)) {
             notify(NOTIFICATION_ID, builder.build())

@@ -29,6 +29,9 @@ class TransactionRepository (
     val transactionStream by lazy { transactionDao.getAll() }
     private fun getBearerToken() = "Bearer ${Api.tokenInterceptor.token}"
 
+    private val sharedPrefs = context.getSharedPreferences("transaction_snapshot", Context.MODE_PRIVATE)
+    private val SNAPSHOT_KEY = "last_known_ids"
+
     init {
         Log.d("TransactionRepository", "init")
     }
@@ -45,6 +48,60 @@ class TransactionRepository (
         } catch (e: Exception) {
             Log.w("Repo", "Refresh failed", e)
         }
+    }
+
+    suspend fun refreshAndNotify() {
+        try {
+            // 1. Salvează snapshot-ul curent (înainte de refresh)
+            val oldSnapshot = loadSnapshot()
+
+            // 2. Fetch date noi de pe server
+            val remoteData = transactionService.find(authorization = getBearerToken())
+
+            // 3. Identifică tranzacții noi (care nu erau în snapshot)
+            val newTransactions = remoteData.filter { transaction ->
+                !oldSnapshot.contains(transaction._id)
+            }
+
+            // 4. Trimite notificări pentru tranzacții noi
+            if (newTransactions.isNotEmpty()) {
+                Log.d("TransactionRepository", "Found ${newTransactions.size} new transactions while offline")
+                newTransactions.forEach { transaction ->
+                    notificationService.showNewTransactionNotification(
+                        transaction.title,
+                        transaction.sum.toDouble(),
+                        transaction.income
+                    )
+                }
+            }
+
+            // 5. Update database
+            transactionDao.deleteSyncedOnly()
+            remoteData.forEach {
+                transactionDao.insert(it.copy(isSynced = true))
+            }
+
+            // 6. Salvează noul snapshot
+            saveSnapshot(remoteData.map { it._id })
+
+        } catch (e: Exception) {
+            Log.w("Repo", "Refresh and notify failed", e)
+        }
+    }
+
+    private fun loadSnapshot(): Set<String> {
+        val idsString = sharedPrefs.getString(SNAPSHOT_KEY, "") ?: ""
+        return if (idsString.isEmpty()) {
+            emptySet()
+        } else {
+            idsString.split(",").toSet()
+        }
+    }
+
+    private fun saveSnapshot(transactionIds: List<String>) {
+        val idsString = transactionIds.joinToString(",")
+        sharedPrefs.edit().putString(SNAPSHOT_KEY, idsString).apply()
+        Log.d("TransactionRepository", "Snapshot saved: ${transactionIds.size} IDs")
     }
 
     suspend fun openWsClient() {
@@ -241,7 +298,7 @@ class TransactionRepository (
             }
         }
 
-        refresh()
+        refreshAndNotify()
     }
 
     private suspend fun handleTransactionDeleted(item: Transaction) {
