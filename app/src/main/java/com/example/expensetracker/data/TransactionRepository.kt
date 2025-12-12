@@ -52,18 +52,14 @@ class TransactionRepository (
 
     suspend fun refreshAndNotify() {
         try {
-            // 1. Salvează snapshot-ul curent (înainte de refresh)
             val oldSnapshot = loadSnapshot()
 
-            // 2. Fetch date noi de pe server
             val remoteData = transactionService.find(authorization = getBearerToken())
 
-            // 3. Identifică tranzacții noi (care nu erau în snapshot)
             val newTransactions = remoteData.filter { transaction ->
                 !oldSnapshot.contains(transaction._id)
             }
 
-            // 4. Trimite notificări pentru tranzacții noi
             if (newTransactions.isNotEmpty()) {
                 Log.d("TransactionRepository", "Found ${newTransactions.size} new transactions while offline")
                 newTransactions.forEach { transaction ->
@@ -75,13 +71,11 @@ class TransactionRepository (
                 }
             }
 
-            // 5. Update database
             transactionDao.deleteSyncedOnly()
             remoteData.forEach {
                 transactionDao.insert(it.copy(isSynced = true))
             }
 
-            // 6. Salvează noul snapshot
             saveSnapshot(remoteData.map { it._id })
 
         } catch (e: Exception) {

@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.twotone.Notifications
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -36,6 +35,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -56,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.expensetracker.MyApplication
 import com.example.expensetracker.R
 import com.example.expensetracker.utils.NetworkStatusService
+import com.example.expensetracker.utils.ShakeDetector
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +74,29 @@ fun HomeScreen(
     val isOnline by networkObserver.isOnline.collectAsState(initial = true)
 
     var showBackOnlineMessage by remember { mutableStateOf(false) }
+    var showShakeMessage by remember { mutableStateOf(false) }
+
+    val shakeDetector = remember {
+        ShakeDetector(context) {
+            Log.d("HomeScreen", "Shake detected! Opening transaction form")
+            showShakeMessage = true
+            onAddTransaction()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        shakeDetector.start()
+        onDispose {
+            shakeDetector.stop()
+        }
+    }
+
+    LaunchedEffect(showShakeMessage) {
+        if (showShakeMessage) {
+            kotlinx.coroutines.delay(2000)
+            showShakeMessage = false
+        }
+    }
 
     var hasNotificationPermission by remember {
         mutableStateOf(
@@ -100,7 +123,7 @@ fun HomeScreen(
         }
     )
 
-    LaunchedEffect (isOnline) {
+    LaunchedEffect(isOnline) {
         if (isOnline) {
             (context.applicationContext as MyApplication).triggerOneTimeSync()
             showBackOnlineMessage = true
@@ -110,6 +133,14 @@ fun HomeScreen(
             showBackOnlineMessage = false
         }
     }
+
+    val totalIncome = transactionsUiState
+        .filter { it.income }
+        .sumOf { it.sum.toDouble() }
+
+    val totalExpenses = transactionsUiState
+        .filter { !it.income }
+        .sumOf { it.sum.toDouble() }
 
     Scaffold(
         topBar = {
@@ -121,7 +152,7 @@ fun HomeScreen(
                             if (!hasNotificationPermission) {
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             } else {
-                                 Toast.makeText(context, "Notifications are active.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Notifications are active.", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }) {
@@ -144,7 +175,7 @@ fun HomeScreen(
                 },
             ) { Icon(Icons.Rounded.Add, "Add") }
         }
-    ) {innerPadding ->
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
@@ -152,6 +183,26 @@ fun HomeScreen(
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            AnimatedVisibility(
+                visible = showShakeMessage,
+                enter = slideInVertically() + fadeIn(),
+                exit = slideOutVertically() + fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "📱 Shake detected! Opening form...",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
             AnimatedVisibility(
                 visible = !isOnline,
                 enter = slideInVertically() + fadeIn(),
@@ -167,7 +218,7 @@ fun HomeScreen(
                     Text(
                         text = "Offline Mode - No Internet Connection",
                         color = Color.White,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -187,21 +238,16 @@ fun HomeScreen(
                     Text(
                         text = "Back Online",
                         color = Color.White,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
 
-            val totalIncome = transactionsUiState
-                .filter { it.income }
-                .sumOf { it.sum.toDouble() }
+            Spacer(Modifier.height(16.dp))
 
-            val totalExpenses = transactionsUiState
-                .filter { !it.income }
-                .sumOf { it.sum.toDouble() }
-
-            Spacer(Modifier.height(50.dp))
             DonutChart(income = totalIncome, expenses = totalExpenses)
+
+            Spacer(Modifier.height(16.dp))
 
             TransactionList(
                 transactionList = transactionsUiState,

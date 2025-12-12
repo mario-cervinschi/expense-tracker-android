@@ -49,11 +49,11 @@ class TransactionViewModel(private val transactionId: String?, private val trans
         }
     }
 
-    fun saveOrUpdateItem(title: String, date : Date, sum : Double, income : Boolean) {
+    fun saveOrUpdateItem(title: String, date : Date, sum : Double, income : Boolean, imagePath : String) {
         viewModelScope.launch {
             try {
                 uiState = uiState.copy(submitResult = com.example.expensetracker.data.Result.Loading)
-                val item = uiState.transaction.copy(title = title, date = date, sum = sum, income = income)
+                val item = uiState.transaction.copy(title = title, date = date, sum = sum, income = income, imagePath = imagePath)
                 val savedTransaction: Transaction;
                 if (transactionId == null) {
                     savedTransaction = transactionRepository.save(item)
