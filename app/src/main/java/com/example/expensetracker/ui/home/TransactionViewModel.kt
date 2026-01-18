@@ -39,29 +39,21 @@ class TransactionViewModel(private val transactionId: String?, private val trans
 
     fun loadTransaction() {
         viewModelScope.launch {
-            transactionRepository.transactions.collect { transactions ->
-                val transaction = transactions.find { it._id == transactionId }
-                if (transaction != null) {
-                    Log.d("TransactionViewModel", "Found transaction: ${transaction.title}")
-                    uiState = uiState.copy(
-                        transaction = transaction,
-                        loadResult = com.example.expensetracker.data.Result.Success(transaction)
-                    )
-                } else {
-                    Log.d("TransactionViewModel", "Transaction not found for id: $transactionId")
-                    uiState = uiState.copy(
-                        loadResult = com.example.expensetracker.data.Result.Error(Exception("Transaction not found"))
-                    )
+            transactionRepository.transactionStream.collect { trans ->
+                if (!(uiState.loadResult is Result.Loading)) {
+                    return@collect
                 }
+                val tran = trans.find { it._id == transactionId } ?: Transaction()
+                uiState = uiState.copy(transaction = tran, loadResult = Result.Success(tran))
             }
         }
     }
 
-    fun saveOrUpdateItem(title: String, date : Date, sum : Double, income : Boolean) {
+    fun saveOrUpdateItem(title: String, date : Date, sum : Double, income : Boolean, imagePath : String) {
         viewModelScope.launch {
             try {
                 uiState = uiState.copy(submitResult = com.example.expensetracker.data.Result.Loading)
-                val item = uiState.transaction.copy(title = title, date = date, sum = sum, income = income)
+                val item = uiState.transaction.copy(title = title, date = date, sum = sum, income = income, imagePath = imagePath)
                 val savedTransaction: Transaction;
                 if (transactionId == null) {
                     savedTransaction = transactionRepository.save(item)

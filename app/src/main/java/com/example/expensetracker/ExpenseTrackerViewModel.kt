@@ -9,17 +9,39 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.expensetracker.data.TransactionRepository
 import com.example.expensetracker.data.UserPreferences
 import com.example.expensetracker.data.UserPreferencesRepository
+import com.example.expensetracker.data.remote.Api
+import com.example.expensetracker.utils.JwtUtils
+import com.example.expensetracker.utils.NetworkStatusService
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
 
 class ExpenseTrackerViewModel (
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val networkStatusService: NetworkStatusService
 ) : ViewModel() {
 
-    init{
+    private var wasOffline = false
 
+    init{
+        observeNetworkStatus()
+    }
+
+    private fun observeNetworkStatus() {
+        viewModelScope.launch {
+            networkStatusService.isOnline.collect { isOnline ->
+                Log.d("ExpenseTrackerVM", "Network status changed: isOnline=$isOnline")
+
+                if (isOnline && wasOffline) {
+                    // Tocmai ai revenit online
+                    Log.d("ExpenseTrackerVM", "Reconnected! Syncing and checking for new transactions...")
+                    transactionRepository.syncOfflineChanges()
+                }
+
+                wasOffline = !isOnline
+            }
+        }
     }
 
     fun logout() {
@@ -36,14 +58,20 @@ class ExpenseTrackerViewModel (
     }
 
     suspend fun verifyToken(): Result<Unit> {
-        return try {
-            Log.d("ExpenseTrackerVM", "Verifying token by refreshing transactions...")
-            transactionRepository.refresh()
-            Log.d("ExpenseTrackerVM", "Token verified. Refresh successful.")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.w("ExpenseTrackerVM", "Token verification failed", e)
-            Result.failure(e)
+        val token = Api.tokenInterceptor.token
+
+        Log.d("ExpenseTrackerVM", "Verifying token locally...")
+        if (!JwtUtils.isTokenExpired(token)) {
+            Log.d("ExpenseTrackerVM", "Token is valid (not expired). Skipping Login.")
+
+            if (Api.tokenInterceptor.token == null && token != null) {
+                Api.tokenInterceptor.token = token
+            }
+
+            return Result.success(Unit)
+        } else {
+            Log.d("ExpenseTrackerVM", "Token expired or invalid.")
+            return Result.failure(Exception("Token expired"))
         }
     }
 
@@ -57,15 +85,15 @@ class ExpenseTrackerViewModel (
         return when (exception) {
             is HttpException -> {
                 if (exception.code() == 401 || exception.code() == 403) {
-                    "Sesiune invalidă. Te rog, autentifică-te din nou."
+                    "Invalid session. Please log in again."
                 } else {
-                    "Eroare de server neașteptată: ${exception.code()}"
+                    "Unknown error: ${exception.code()}"
                 }
             }
             is IOException, is java.net.UnknownHostException -> {
-                "Serverul nu răspunde. Verifică conexiunea la internet."
+                "Server not responding. Verify internet connection."
             }
-            else -> "A apărut o eroare necunoscută."
+            else -> "Unknown error."
         }
     }
 
@@ -79,7 +107,8 @@ class ExpenseTrackerViewModel (
                     (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MyApplication)
                 ExpenseTrackerViewModel(
                     app.container.userPreferencesRepository,
-                    app.container.transactionRepository
+                    app.container.transactionRepository,
+                    app.container.networkStatusService
                 )
             }
         }

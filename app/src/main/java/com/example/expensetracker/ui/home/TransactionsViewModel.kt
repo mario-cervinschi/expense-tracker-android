@@ -15,17 +15,21 @@ import kotlinx.coroutines.launch
 class TransactionsViewModel(
     private val transactionRepository: TransactionRepository
 ) : ViewModel() {
-    val uiState: Flow<List<Transaction>> = transactionRepository.transactions
+    val uiState: Flow<List<Transaction>> = transactionRepository.transactionStream
 
     init {
         Log.d("TransactionsViewModel", "init")
-        loadTransactions()
     }
 
-    fun loadTransactions() {
-        Log.d("TransactionsViewModel", "loadTransactions...")
+    fun refreshData(){
+        Log.d("TransactionsViewModel", "User requested refresh...")
         viewModelScope.launch {
-            transactionRepository.refresh()
+            try {
+                transactionRepository.refresh()
+                Log.d("TransactionsViewModel", "Refresh succeeded")
+            } catch (e: Exception) {
+                Log.w("TransactionsViewModel", "Refresh failed: ${e.message}")
+            }
         }
     }
 

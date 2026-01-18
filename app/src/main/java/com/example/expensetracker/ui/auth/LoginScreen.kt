@@ -103,7 +103,7 @@ fun LoginScreen(
             is AuthCheckState.Error -> {
                 AlertDialog(
                     onDismissRequest = onDismissError,
-                    title = { Text("Eroare de Autentificare") },
+                    title = { Text("Eroare autentificare") },
                     text = { Text(authCheckState.message) },
                     confirmButton = {
                         Button(onClick = onDismissError) {

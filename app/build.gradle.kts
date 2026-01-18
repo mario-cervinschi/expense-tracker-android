@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.ksp)
 }
 
 android {
@@ -70,4 +71,28 @@ dependencies {
     implementation("com.squareup.moshi:moshi:1.15.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
     implementation("com.squareup.moshi:moshi-adapters:1.15.1")
+
+    val room_version = "2.8.4"
+
+    implementation("androidx.room:room-runtime:$room_version")
+
+    // If this project uses any Kotlin source, use Kotlin Symbol Processing (KSP)
+    // See Add the KSP plugin to your project
+    ksp("androidx.room:room-compiler:$room_version")
+
+
+    // optional - Kotlin Extensions and Coroutines support for Room
+    implementation("androidx.room:room-ktx:$room_version")
+
+    val work_version = "2.11.0"
+    implementation("androidx.work:work-runtime-ktx:${work_version}")
+
+    val camerax_version = "1.3.0" // sau o versiune mai nouă
+    implementation("androidx.camera:camera-camera2:$camerax_version" )
+    implementation("androidx.camera:camera-lifecycle:$camerax_version" )
+    implementation("androidx.camera:camera-view:$camerax_version" )
+
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+    implementation("io.coil-kt:coil-compose:2.6.0")
 }

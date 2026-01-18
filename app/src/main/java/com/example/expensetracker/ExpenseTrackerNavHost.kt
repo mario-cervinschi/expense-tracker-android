@@ -122,7 +122,11 @@ fun ExpenseTrackerNavHost() {
 
             if (result.isSuccess) {
                 authCheckState = AuthCheckState.Idle
-                expenseTrackerViewModel.startWebSocketListener()
+                try {
+                    expenseTrackerViewModel.startWebSocketListener()
+                } catch (e: Exception) {
+                    Log.w("NavHost", "Could not start websocket (offline?)")
+                }
                 navController.navigate(Screen.Main.route) {
                     popUpTo(0)
                 }
